@@ -57,3 +57,13 @@ Each report has a Delete report button with a confirmation prompt. Confirming re
 
 ## Editing reports
 Select Edit report to populate the form. Save changes validates and persists allowed fields; Cancel editing discards changes. This prototype permits public editing; owner/moderator authorization is required for wider public use.
+
+## Deploy on Vercel (recommended for this project)
+1. Sign up at https://vercel.com using GitHub, then Add New Project and import Thisaru632/safelanka.
+2. Keep the repository root directory, Vite preset, build command `npm run build` and output directory `dist`.
+3. Add a private `MONGODB_URI` environment variable using your local server/.env value (safelanka database). Do not prefix it with VITE_. Enable it for Production and Preview if needed.
+4. Configure Atlas network access for the deployment. Standard Vercel functions use dynamic outbound IPs; fixed egress requires additional Vercel networking configuration. For a short-lived demo, allowing 0.0.0.0/0 permits any network to attempt a connection, so use a dedicated database user with minimal permissions and a strong private password.
+5. Deploy and open /api/health on the public URL. It should report database connected.
+6. Test fictional report creation, editing, filtering and deletion on desktop and mobile in a private browser.
+
+Vercel serves the React build and routes /api requests to api/index.js, which exports Express. MongoDB connections are established lazily and reused within each function instance. Local npm start/npm run dev commands continue to work. Environment variable changes require a new deployment. No live Vercel deployment has been performed yet.

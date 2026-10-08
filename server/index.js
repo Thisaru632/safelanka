@@ -9,6 +9,16 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(root, '.env'), quiet: true });
 const app = express();
 app.use(express.json({ limit: '20kb' }));
+let connectionPromise;
+export async function connectDatabase(){
+ if(mongoose.connection.readyState===1)return;
+ if(!process.env.MONGODB_URI)throw new Error('MONGODB_URI is required.');
+ if(!connectionPromise)connectionPromise=mongoose.connect(process.env.MONGODB_URI,{serverSelectionTimeoutMS:10000,lookup:atlasLookup}).catch(error=>{connectionPromise=undefined;throw error;});
+ await connectionPromise;
+}
+app.use('/api',async(req,res,next)=>{
+ try{await connectDatabase();next();}catch(error){res.status(503).json({message:'Database unavailable. Please try again shortly.'});}
+});
 const schema = new mongoose.Schema({
  title: {type:String,required:true,trim:true,minlength:5,maxlength:100},
  type: {type:String,required:true,enum:Object.keys(guidance)},
@@ -51,8 +61,9 @@ app.use((error,req,res,next)=>{
  if(error.type==='entity.too.large')return res.status(413).json({message:'Report is too large.'});
  res.status(500).json({message:'Unable to complete your request. Please try again.'});
 });
+if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
 try{
- await mongoose.connect(process.env.MONGODB_URI,{serverSelectionTimeoutMS:10000,lookup:atlasLookup});
+ await connectDatabase();
  if(process.argv.includes('--seed')){
   if(await Report.countDocuments()===0)await Report.insertMany([
    {title:'Demo: water covering a local road',type:'Flood',district:'Ratnapura',location:'Example neighbourhood',description:'Fictional example showing a community report of water covering a road. This is not an actual incident.',observedAt:new Date(),isDemo:true},
@@ -64,3 +75,6 @@ try{
 }catch(e){console.error('Database connection failed:',e.name);process.exit(1);}
 
 
+
+}
+export default app;
