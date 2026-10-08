@@ -1,40 +1,110 @@
 import React,{useEffect,useState} from 'react';
+
 import {createRoot} from 'react-dom/client';
+
 import {districts,guidance} from '../server/shared.js';
+
 import './style.css';
+
 const blank={title:'',type:'Flood',district:'',location:'',description:'',observedAt:''};
+
 async function api(url,options){const response=await fetch(url,options);const data=await response.json();if(!response.ok)throw Error(data.errors?Object.values(data.errors).join(' '):data.message);return data;}
-function Actions({type}){const info=guidance[type];return <div className="actions"><h4>Suggested safety actions · {type}</h4><ul>{info.actions.map(action=><li key={action}>{action}</li>)}</ul><a href={info.url} target="_blank" rel="noreferrer">{info.source} ↗</a><p className="fine">General guidance, not a location-specific assessment. Follow official instructions.</p></div>;}
+
+function Actions({type}){const info=guidance[type];return <div className="actions"><h4>Suggested safety actions Â· {type}</h4><ul>{info.actions.map(action=><li key={action}>{action}</li>)}</ul><a href={info.url} target="_blank" rel="noreferrer">{info.source} â†—</a><p className="fine">General guidance, not a location-specific assessment. Follow official instructions.</p></div>;}
+
 function App(){
+
  const [reports,setReports]=useState([]),[form,setForm]=useState(blank),[search,setSearch]=useState(''),[district,setDistrict]=useState(''),[type,setType]=useState(''),[selected,setSelected]=useState('Flood');
+
  const [loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+
  const [deleting,setDeleting]=useState('');
+
+ const [editing,setEditing]=useState('');
+
+ const [aiBusy,setAiBusy]=useState(false),[suggestion,setSuggestion]=useState(null);
+
  async function refresh(){setReports(await api('/api/reports'));}
+
  useEffect(()=>{refresh().catch(e=>setError(e.message)).finally(()=>setLoading(false));},[]);
+
+ async function requestSuggestion(){
+
+  setError('');setSuggestion(null);setAiBusy(true);
+
+  try{const data=await api('/api/ai/suggest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:form.description})});setSuggestion({...data,original:form.description});}
+
+  catch(e){setError(e.message);}finally{setAiBusy(false);}
+
+ }
+
+ function applySuggestion(){setForm(current=>({...current,title:suggestion.title,type:suggestion.type}));setSuggestion(null);}
+
+ function cancelEdit(){setEditing('');setForm(blank);setSuggestion(null);setError('');}
+
+ function editReport(report){
+
+  const date=new Date(report.observedAt);
+
+  const local=new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);
+
+  setSuggestion(null);setEditing(report._id);setForm({title:report.title,type:report.type,district:report.district,location:report.location,description:report.description,observedAt:local});setError('');setMessage('');
+
+  document.getElementById('report').scrollIntoView({behavior:'smooth'});
+
+ }
+
  async function submit(e){e.preventDefault();setError('');setMessage('');
+
   if(form.title.trim().length<5||form.location.trim().length<3||form.description.trim().length<15)return setError('Add a title of at least 5 characters, a location of at least 3, and a description of at least 15.');
+
   if(!form.observedAt||new Date(form.observedAt).getTime()>Date.now())return setError('Choose an observation time that is not in the future.');
-  setSaving(true);try{const created=await api('/api/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,observedAt:new Date(form.observedAt).toISOString()})});setReports(current=>[created,...current]);setForm(blank);setMessage('Report published as unverified. It has not been sent to emergency services.');}catch(e){setError(e.message);}finally{setSaving(false);}
+
+  setSaving(true);try{const created=await api(editing?`/api/reports/${editing}`:'/api/reports',{method:editing?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,observedAt:new Date(form.observedAt).toISOString()})});setReports(current=>editing?current.map(report=>report._id===editing?created:report):[created,...current]);setForm(blank);setSuggestion(null);setEditing('');setMessage(editing?'Report updated successfully.':'Report published as unverified. It has not been sent to emergency services.');}catch(e){setError(e.message);}finally{setSaving(false);}
+
  }
+
  async function deleteReport(report){
+
   if(!window.confirm(`Delete "${report.title}"? This permanently removes the report and cannot be undone.`))return;
+
   setDeleting(report._id);setError('');setMessage('');
-  try{await api(`/api/reports/${report._id}`,{method:'DELETE'});setReports(current=>current.filter(item=>item._id!==report._id));setMessage('Report deleted successfully.');}
+
+  try{await api(`/api/reports/${report._id}`,{method:'DELETE'});setReports(current=>current.filter(item=>item._id!==report._id));if(editing===report._id)cancelEdit();setMessage('Report deleted successfully.');}
+
   catch(e){setError(e.message);if(e.message.includes('already been removed'))setReports(current=>current.filter(item=>item._id!==report._id));}
+
   finally{setDeleting('');}
+
  }
+
  const visible=reports.filter(r=>(!type||r.type===type)&&(!district||r.district===district)&&`${r.title} ${r.location} ${r.description}`.toLowerCase().includes(search.toLowerCase()));
+
  return <><header><a className="brand" href="#home">Safe <span>Lanka</span></a><nav><a href="#reports">Reports</a><a href="#report">Report</a><a href="#guidance">Safety</a></nav></header>
- <main id="home"><section className="hero"><p className="eyebrow">COMMUNITY AWARENESS · SRI LANKA</p><h1>Share what you see.<br/>Know what to do.</h1><p>Local disaster reports and trusted safety guidance in one place. Help your community stay informed about floods, landslides and coastal hazards.</p><a className="button" href="#report">Report an observation</a><a className="secondary" href="#reports">Browse community reports →</a></section>
- <aside className="emergency"><strong>Need urgent disaster assistance?</strong><a href="tel:117">Call DMC 117</a><a href="https://www.dmc.gov.lk/index.php?lang=en" target="_blank" rel="noreferrer">Official DMC updates ↗</a></aside>
+
+ <main id="home"><section className="hero"><p className="eyebrow">COMMUNITY AWARENESS Â· SRI LANKA</p><h1>Share what you see.<br/>Know what to do.</h1><p>Local disaster reports and trusted safety guidance in one place. Help your community stay informed about floods, landslides and coastal hazards.</p><a className="button" href="#report">Report an observation</a><a className="secondary" href="#reports">Browse community reports â†’</a></section>
+
+ <aside className="emergency"><strong>Need urgent disaster assistance?</strong><a href="tel:117">Call DMC 117</a><a href="https://www.dmc.gov.lk/index.php?lang=en" target="_blank" rel="noreferrer">Official DMC updates â†—</a></aside>
+
  <aside className="note">Community reports are unverified observations, not official warnings. Posting here does not dispatch help. Reports marked DEMO are fictional; absence of reports does not mean an area is safe.</aside>
+
  <section className="stats"><div><strong>{reports.length}</strong> community reports</div><div><strong>{new Set(reports.map(r=>r.district)).size}</strong> districts reported</div><div><strong>{reports.filter(r=>r.isDemo).length}</strong> fictional demo reports</div></section>
+
  {error&&<p role="alert" className="alert error">{error}</p>}{message&&<p role="status" className="alert success">{message}</p>}
+
  <div className="layout"><section id="reports"><p className="eyebrow">COMMUNITY OBSERVATIONS</p><div className="section-heading"><h2>Latest reports</h2><button className="outline" onClick={()=>{setLoading(true);setError('');refresh().catch(e=>setError(e.message)).finally(()=>setLoading(false));}} disabled={loading}>Refresh</button></div><div className="filters"><label>Search<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search locations or reports"/></label><label>District<select value={district} onChange={e=>setDistrict(e.target.value)}><option value="">All districts</option>{districts.map(d=><option key={d}>{d}</option>)}</select></label><label>Disaster type<select value={type} onChange={e=>setType(e.target.value)}><option value="">All types</option>{Object.keys(guidance).map(t=><option key={t}>{t}</option>)}</select></label></div>
- {loading?<p>Loading reports…</p>:visible.length===0?<p>No matching reports. Try another filter. This does not indicate that an area is safe.</p>:<div className="cards">{visible.map(r=><article className="card" key={r._id}><div className="badges"><span className="tag">{r.type}</span><span className="unverified">Unverified</span>{r.isDemo&&<span className="demo">DEMO</span>}</div><h3>{r.title}</h3><p><strong>{r.district}</strong> · {r.location}</p><p className="description">{r.description}</p><p>Observed: {new Date(r.observedAt).toLocaleString()}</p><p>Posted: {new Date(r.createdAt).toLocaleString()}</p><details><summary>View suggested safety actions</summary><Actions type={r.type}/></details><button className="delete-button" disabled={Boolean(deleting)} onClick={()=>deleteReport(r)} aria-label={`Delete report: ${r.title}`}>{deleting===r._id?'Deleting…':'Delete report'}</button></article>)}</div>}</section>
- <section id="report" className="form-panel"><p className="eyebrow">SHARE RESPONSIBLY</p><h2>Report an observation</h2><p>Only describe what you observed. Do not include private names, phone numbers or home addresses.</p><form onSubmit={submit}><label>Report title<input required minLength={5} maxLength={100} value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="What did you observe?"/></label><label>Disaster type<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{Object.keys(guidance).map(t=><option key={t}>{t}</option>)}</select></label><label>District<select required value={form.district} onChange={e=>setForm({...form,district:e.target.value})}><option value="">Select district</option>{districts.map(d=><option key={d}>{d}</option>)}</select></label><label>Town / public landmark<input required minLength={3} maxLength={100} value={form.location} onChange={e=>setForm({...form,location:e.target.value})}/></label><label>When did you observe it?<input required type="datetime-local" value={form.observedAt} onChange={e=>setForm({...form,observedAt:e.target.value})}/></label><label>Description<textarea required minLength={15} maxLength={1000} rows={4} value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label><button disabled={saving}>{saving?'Publishing…':'Publish community report'}</button><p className="fine">Your report will be public and labelled unverified. For urgent help, call 117.</p></form></section></div>
- <section id="guidance" className="guidance-section"><p className="eyebrow">PREPARE AND STAY INFORMED</p><h2>Safety guidance</h2><label>Choose a hazard<select value={selected} onChange={e=>setSelected(e.target.value)}>{Object.keys(guidance).map(t=><option key={t}>{t}</option>)}</select></label><Actions type={selected}/></section></main><footer>Safe Lanka · Community reporting prototype · Guidance reviewed 8 October 2026</footer></>;
+
+ {loading?<p>Loading reportsâ€¦</p>:visible.length===0?<p>No matching reports. Try another filter. This does not indicate that an area is safe.</p>:<div className="cards">{visible.map(r=><article className="card" key={r._id}><div className="badges"><span className="tag">{r.type}</span><span className="unverified">Unverified</span>{r.isDemo&&<span className="demo">DEMO</span>}</div><h3>{r.title}</h3><p><strong>{r.district}</strong> Â· {r.location}</p><p className="description">{r.description}</p><p>Observed: {new Date(r.observedAt).toLocaleString()}</p><p>Posted: {new Date(r.createdAt).toLocaleString()}</p><details><summary>View suggested safety actions</summary><Actions type={r.type}/></details><button className="outline edit-button" disabled={saving||Boolean(deleting)} onClick={()=>editReport(r)}>Edit report</button><button className="delete-button" disabled={saving||Boolean(deleting)} onClick={()=>deleteReport(r)} aria-label={`Delete report: ${r.title}`}>{deleting===r._id?'Deletingâ€¦':'Delete report'}</button></article>)}</div>}</section>
+
+ <section id="report" className="form-panel"><p className="eyebrow">SHARE RESPONSIBLY</p><h2>{editing?'Edit report':'Report an observation'}</h2><p>Only describe what you observed. Do not include private names, phone numbers or home addresses.</p><form onSubmit={submit}><fieldset disabled={saving||aiBusy} className="report-fields"><label>Report title<input required minLength={5} maxLength={100} value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="What did you observe?"/></label><label>Disaster type<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{Object.keys(guidance).map(t=><option key={t}>{t}</option>)}</select></label><label>District<select required value={form.district} onChange={e=>setForm({...form,district:e.target.value})}><option value="">Select district</option>{districts.map(d=><option key={d}>{d}</option>)}</select></label><label>Town / public landmark<input required minLength={3} maxLength={100} value={form.location} onChange={e=>setForm({...form,location:e.target.value})}/></label><label>When did you observe it?<input required type="datetime-local" value={form.observedAt} onChange={e=>setForm({...form,observedAt:e.target.value})}/></label><label>Description<textarea required minLength={15} maxLength={1000} rows={4} value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label><div className="ai-panel"><h4>Gemini report assistant</h4><p className="fine">Send your description to Google Gemini for a title, summary and category suggestion. Remove personal details first. AI does not verify reports.</p><button type="button" className="outline" disabled={aiBusy||form.description.trim().length<15} onClick={requestSuggestion}>{aiBusy?'Generating suggestion…':'Suggest with AI'}</button>{suggestion&&suggestion.original===form.description&&<div role="status"><p><strong>Suggested title:</strong> {suggestion.title}</p><p><strong>Category:</strong> {suggestion.type}</p><p><strong>Summary:</strong> {suggestion.summary}</p><p className="fine">Review for accuracy. Applying updates only the title and category; your original observation stays unchanged.</p><button type="button" onClick={applySuggestion}>Apply title and category</button><button type="button" className="outline" onClick={()=>setSuggestion(null)}>Dismiss</button></div>}</div><button disabled={saving}>{saving?'Savingâ€¦':editing?'Save changes':'Publish community report'}</button>{editing&&<button type="button" className="outline" onClick={cancelEdit}>Cancel editing</button>}<p className="fine">Your report will be public and labelled unverified. For urgent help, call 117.</p></fieldset></form></section></div>
+
+ <section id="guidance" className="guidance-section"><p className="eyebrow">PREPARE AND STAY INFORMED</p><h2>Safety guidance</h2><label>Choose a hazard<select value={selected} onChange={e=>setSelected(e.target.value)}>{Object.keys(guidance).map(t=><option key={t}>{t}</option>)}</select></label><Actions type={selected}/></section></main><footer>Safe Lanka Â· Community reporting prototype Â· Guidance reviewed 8 October 2026</footer></>;
+
 }
+
 createRoot(document.getElementById('root')).render(<App/>);
+
+
+
 
 
