@@ -34,7 +34,7 @@ app.get('/api/reports',async(req,res,next)=>{try{res.json(await Report.find().so
 app.post('/api/reports',async(req,res,next)=>{
  try{const {title,type,district,location,description,observedAt}=req.body;res.status(201).json(await Report.create({title,type,district,location,description,observedAt}));}catch(e){next(e);}
 });
-#Create a disaster report
+
 app.patch('/api/reports/:id',async(req,res,next)=>{
  try{
   if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Invalid report ID.'});
