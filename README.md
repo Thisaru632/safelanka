@@ -140,5 +140,7 @@ Vercel serves the React build and routes /api requests to api/index.js, which ex
 
 ## Gemini report assistant
 
-Set GEMINI_API_KEY privately in server/.env and Vercel Production environment variables. Optional GEMINI_MODEL defaults to gemini-2.5-flash. The assistant sends only the entered description to Gemini, returns a structured title/summary/category for review, and applies title/category only on user confirmation. Original descriptions and sourced safety actions are preserved. AI does not verify reports. Manual reporting works if AI is unavailable. Provider quotas/costs apply; this public prototype does not yet have durable AI request rate limiting. Declare Gemini use in your submission and log significant prompts.
+Set GEMINI_API_KEY privately in server/.env and Vercel Production environment variables. Optional GEMINI_MODEL defaults to gemini-3.8-flash. The assistant sends only the entered description to Gemini, returns a structured title/summary/category for review, and applies title/category only on user confirmation. Original descriptions and sourced safety actions are preserved. AI does not verify reports. Manual reporting works if AI is unavailable. Provider quotas/costs apply; this public prototype does not yet have durable AI request rate limiting. Declare Gemini use in your submission and log significant prompts.
 
+
+The AI client retries one temporary provider/server or network failure and reports provider status without exposing credentials.
