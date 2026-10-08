@@ -54,3 +54,6 @@ Safe Lanka uses the separate MongoDB database safelanka and the disasterreports 
 ## Removing incorrect reports
 Each report has a Delete report button with a confirmation prompt. Confirming removes it from MongoDB and updates the visible list and counts. This prototype has no authentication: anyone with app access can delete reports. Before wider public use, restrict deletion to report owners or moderators.
 
+
+## Editing reports
+Select Edit report to populate the form. Save changes validates and persists allowed fields; Cancel editing discards changes. This prototype permits public editing; owner/moderator authorization is required for wider public use.

@@ -24,6 +24,17 @@ app.get('/api/reports',async(req,res,next)=>{try{res.json(await Report.find().so
 app.post('/api/reports',async(req,res,next)=>{
  try{const {title,type,district,location,description,observedAt}=req.body;res.status(201).json(await Report.create({title,type,district,location,description,observedAt}));}catch(e){next(e);}
 });
+app.patch('/api/reports/:id',async(req,res,next)=>{
+ try{
+  if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Invalid report ID.'});
+  const allowed=['title','type','district','location','description','observedAt'];
+  const updates=Object.fromEntries(allowed.filter(key=>Object.hasOwn(req.body,key)).map(key=>[key,req.body[key]]));
+  if(!Object.keys(updates).length)return res.status(400).json({message:'No report changes supplied.'});
+  const report=await Report.findByIdAndUpdate(req.params.id,{$set:updates},{runValidators:true,returnDocument:'after'});
+  if(!report)return res.status(404).json({message:'This report has already been removed or does not exist.'});
+  res.json(report);
+ }catch(e){next(e);}
+});
 app.delete('/api/reports/:id',async(req,res,next)=>{
  try{
   if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({message:'Invalid report ID.'});
