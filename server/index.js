@@ -9,6 +9,35 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(root, '.env'), quiet: true });
 const app = express();
 app.use(express.json({ limit: '20kb' }));
+
+let dbPromise = null;
+export async function connectDB() {
+ if (mongoose.connection.readyState === 1) return;
+ if (!dbPromise) {
+  if (!process.env.MONGODB_URI) {
+   throw new Error('MONGODB_URI environment variable is missing.');
+  }
+  dbPromise = mongoose.connect(process.env.MONGODB_URI, {
+   serverSelectionTimeoutMS: 10000,
+   lookup: atlasLookup
+  }).catch(err => {
+   dbPromise = null;
+   throw err;
+  });
+ }
+ await dbPromise;
+}
+
+app.use('/api', async (req, res, next) => {
+ try {
+  await connectDB();
+  next();
+ } catch (e) {
+  console.error('Database connection failed:', e.message);
+  res.status(500).json({ message: 'Unable to connect to database. Please check configuration.' });
+ }
+});
+
 const schema = new mongoose.Schema({
  title: {type:String,required:true,trim:true,minlength:5,maxlength:100},
  type: {type:String,required:true,enum:Object.keys(guidance)},
@@ -40,16 +69,21 @@ app.use((error,req,res,next)=>{
  if(error.type==='entity.too.large')return res.status(413).json({message:'Report is too large.'});
  res.status(500).json({message:'Unable to complete your request. Please try again.'});
 });
-try{
- await mongoose.connect(process.env.MONGODB_URI,{serverSelectionTimeoutMS:10000,lookup:atlasLookup});
- if(process.argv.includes('--seed')){
-  if(await Report.countDocuments()===0)await Report.insertMany([
-   {title:'Demo: water covering a local road',type:'Flood',district:'Ratnapura',location:'Example neighbourhood',description:'Fictional example showing a community report of water covering a road. This is not an actual incident.',observedAt:new Date(),isDemo:true},
-   {title:'Demo: reported slope movement',type:'Landslide',district:'Badulla',location:'Example hillside',description:'Fictional example showing a report of slope movement near a hillside. This is not an actual incident.',observedAt:new Date(),isDemo:true},
-   {title:'Demo: coastal hazard concern',type:'Tsunami',district:'Galle',location:'Example coastal area',description:'Fictional example for demonstrating coastal safety guidance. This is not a tsunami warning.',observedAt:new Date(),isDemo:true}
-  ]);
-  console.log('Fictional demonstration reports ready.');await mongoose.disconnect();
- }else app.listen(process.env.PORT||5000,()=>console.log('Safe Lanka running on port '+(process.env.PORT||5000)+'; MongoDB connected.'));
-}catch(e){console.error('Database connection failed:',e.name);process.exit(1);}
+
+if (!process.env.VERCEL) {
+ try {
+  await connectDB();
+  if(process.argv.includes('--seed')){
+   if(await Report.countDocuments()===0)await Report.insertMany([
+    {title:'Demo: water covering a local road',type:'Flood',district:'Ratnapura',location:'Example neighbourhood',description:'Fictional example showing a community report of water covering a road. This is not an actual incident.',observedAt:new Date(),isDemo:true},
+    {title:'Demo: reported slope movement',type:'Landslide',district:'Badulla',location:'Example hillside',description:'Fictional example showing a report of slope movement near a hillside. This is not an actual incident.',observedAt:new Date(),isDemo:true},
+    {title:'Demo: coastal hazard concern',type:'Tsunami',district:'Galle',location:'Example coastal area',description:'Fictional example for demonstrating coastal safety guidance. This is not a tsunami warning.',observedAt:new Date(),isDemo:true}
+   ]);
+   console.log('Fictional demonstration reports ready.');await mongoose.disconnect();
+  }else app.listen(process.env.PORT||5000,()=>console.log('Safe Lanka running on port '+(process.env.PORT||5000)+'; MongoDB connected.'));
+ }catch(e){console.error('Database connection failed:',e.name);process.exit(1);}
+}
+
+export default app;
 
 
